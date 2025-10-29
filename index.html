@@ -1,8 +1,127 @@
-<!DOCTYPE html>
-<html>
-  <head></head>
-  <body>
-    <h1>シンピクのウェブサイト</h1>
-    <p>くぁｗせｄｒｆｔｇｙふじこｌｐ</p>
-  </body>
-</html>
+#!/usr/bin/env ruby
+# site_cmd.rb
+# シンプルな Sinatra プロジェクトを作る CLI ツール
+# 使い方: ruby site_cmd.rb help
+require 'fileutils'
+require 'erb'
+
+def help
+  puts <<~HELP
+    Usage: ruby site_cmd.rb <command> [args...]
+
+    Commands:
+      new <project>                     Create a new Sinatra project scaffold
+      serve <project> [port]            Start the Sinatra app (dev)
+      add_route <project> <path> <view> Add GET route for path and create view (ERB)
+      generate_page <project> <view>    Create an ERB view file under views/
+      help                              Show this help
+  HELP
+end
+
+def new_project(name)
+  if Dir.exist?(name)
+    puts "Error: directory '#{name}' already exists."
+    return
+  end
+
+  puts "Creating project '#{name}'..."
+  FileUtils.mkdir_p("#{name}/views")
+  FileUtils.mkdir_p("#{name}/public")
+  FileUtils.mkdir_p("#{name}/public/css")
+  FileUtils.mkdir_p("#{name}/public/js")
+
+  # Gemfile
+  File.write("#{name}/Gemfile", <<~GEM)
+    source "https://rubygems.org"
+    gem "sinatra"
+  GEM
+
+  # app.rb
+  File.write("#{name}/app.rb", <<~RUBY)
+    require 'sinatra'
+
+    set :public_folder, File.dirname(__FILE__) + '/public'
+    set :views, File.dirname(__FILE__) + '/views'
+
+    get '/' do
+      erb :index
+    end
+
+    # example route:
+    # get '/hello' do
+    #   erb :hello
+    # end
+
+    # start with: ruby app.rb -p 4567
+  RUBY
+
+  # default view (index)
+  File.write("#{name}/views/index.erb", <<~ERB)
+    <!doctype html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>#{name}</title>
+      <link rel="stylesheet" href="/css/style.css">
+    </head>
+    <body>
+      <h1>Welcome to #{name}</h1>
+      <p>This is a simple Sinatra site scaffold.</p>
+    </body>
+    </html>
+  ERB
+
+  # default css
+  File.write("#{name}/public/css/style.css", <<~CSS)
+    body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif; padding: 2rem; line-height: 1.6; }
+    h1 { color: #2b6cb0; }
+  CSS
+
+  # README
+  File.write("#{name}/README.md", <<~MD)
+    # #{name}
+
+    Sinatra scaffold created by site_cmd.rb.
+
+    ## Setup
+    ```bash
+    cd #{name}
+    bundle install --path vendor/bundle
+    ruby app.rb -p 4567
+    ```
+  README
+
+  puts "Project '#{name}' created. cd into the folder and run 'bundle install' then 'ruby app.rb -p 4567'."
+end
+
+def serve_project(name, port = 4567)
+  unless Dir.exist?(name)
+    puts "Error: project '#{name}' not found."
+    return
+  end
+  Dir.chdir(name) do
+    # Suggest using bundler if Gemfile exists
+    if File.exist?('Gemfile')
+      puts "Starting server with Bundler if available..."
+      exec("bundle exec ruby app.rb -p #{port}")
+    else
+      puts "Starting server..."
+      exec("ruby app.rb -p #{port}")
+    end
+  end
+end
+
+def add_route(project, path, view)
+  unless Dir.exist?(project)
+    puts "Error: project '#{project}' not found."
+    return
+  end
+
+  appfile = File.join(project, 'app.rb')
+  unless File.exist?(appfile)
+    puts "Error: app.rb not found in #{project}."
+    return
+  end
+
+  # sanitize path and view
+  path = path.start
